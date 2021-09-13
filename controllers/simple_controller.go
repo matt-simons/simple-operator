@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -64,25 +65,24 @@ func (r *SimpleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	logger.Info("Simple object", "simple", simple)
 
 	_, err = ctrl.CreateOrUpdate(ctx, r.Client, cm, func() error {
-		if cm.ObjectMeta.CreationTimestamp.IsZero() {
-			return nil
-		}
-
 		cm.Data = make(map[string]string)
+		if simple.Spec.Foo != "" {
+			cm.Data["something.conf"] = fmt.Sprintf("setting = %s", simple.Spec.Foo)
+		}
 
 		if err := ctrl.SetControllerReference(simple, cm, r.Scheme); err != nil {
 			logger.Error(err, "Failed to set controller ref")
-			return nil
+			return err
 		}
 
-		cm.Data["something.conf"] = "setting = newdata"
-
-		logger.Info("Check tampering", "configmap", cm)
 		return nil
 	})
-	logger.Error(err, "empty cm error")
 
-	logger.Info("Empty ConfigMap", "configmap", cm)
+	if err != nil {
+		logger.Info("Failed to reconcile ConfigMap")
+		return ctrl.Result{}, err
+	}
+	logger.Info("Successfully reconciled configmap", "configmap", cm)
 
 	return ctrl.Result{}, nil
 }
